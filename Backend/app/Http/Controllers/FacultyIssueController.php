@@ -83,6 +83,7 @@ class FacultyIssueController extends Controller
                     'class_issues.cl_issue_id',
                     'class_issues.issue_name',
                     'class_issues.cat_no',
+                    'students.student_id',
                     'classes.cl_name AS class_name',
                     'leaders.cls_no',
                     'students.name AS leader_name',

@@ -6,6 +6,11 @@ import Sidebar from '../components/Sidebar';
 import classIssueService from '../api/classIssueService';
 import { getUser } from '../utils/auth';
 
+const isUnread = (notification) => {
+    const value = notification?.is_read;
+    return value === 0 || value === '0' || value === false || value === null || value === undefined;
+};
+
 const DashboardLayout = ({ children }) => {
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [isNotifOpen, setIsNotifOpen] = useState(false);
@@ -16,13 +21,12 @@ const DashboardLayout = ({ children }) => {
         if (!user) return;
         try {
             const res = await classIssueService.getNotifications(user.user_id);
-            let notifs = res.success && res.data.length > 0 ? res.data : [
-                { is_read: 0 }, { is_read: 1 }, { is_read: 0 } // Sample placeholder data structure for counting
-            ];
-            const count = notifs.filter(n => !n.is_read).length;
+            const notifs = res?.success && Array.isArray(res.data) ? res.data : [];
+            const count = notifs.filter((notification) => isUnread(notification)).length;
             setUnreadCount(count);
         } catch (err) {
-            console.error("Failed to fetch notification count", err);
+            console.error('Failed to fetch notification count', err);
+            setUnreadCount(0);
         }
     };
 
@@ -30,7 +34,7 @@ const DashboardLayout = ({ children }) => {
         fetchUnreadCount();
         const interval = setInterval(fetchUnreadCount, 30000); // Refresh every 30s
         return () => clearInterval(interval);
-    }, []);
+    }, [user?.user_id]);
 
     return (
         <div className="flex h-screen overflow-hidden bg-gray-50">

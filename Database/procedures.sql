@@ -1,9 +1,32 @@
 DELIMITER $$
-CREATE DEFINER=`root`@`localhost` PROCEDURE `sp_create_student`(IN `p_name` VARCHAR(150), IN `p_tell` VARCHAR(30), IN `p_gender` VARCHAR(15), IN `p_email` VARCHAR(150), IN `p_add_no` INT, IN `p_dob` DATE, IN `p_parent_no` INT, IN `p_register_date` DATE, IN `p_mother` VARCHAR(150), IN `p_sch_no` INT, IN `p_nira` VARCHAR(50), IN `p_status` VARCHAR(20), IN `p_access_channel` ENUM('APP','WEB','BOTH',''), OUT `o_user_id` INT, OUT `o_std_id` INT, OUT `o_student_id` VARCHAR(20), OUT `o_plain_password` VARCHAR(6))
+
+CREATE DEFINER=`root`@`localhost` PROCEDURE `sp_create_student`(
+  IN  p_name            VARCHAR(150),
+  IN  p_tell            VARCHAR(30),
+  IN  p_gender          VARCHAR(15),
+  IN  p_email           VARCHAR(150),
+  IN  p_add_no          INT,
+  IN  p_dob             DATE,
+  IN  p_parent_no       INT,
+  IN  p_register_date   DATE,
+  IN  p_mother          VARCHAR(150),
+  IN  p_pob             VARCHAR(100),
+  IN  p_graduation_year YEAR,
+  IN  p_grade           VARCHAR(20),
+  IN  p_sch_no          INT,
+  IN  p_nira            VARCHAR(50),
+  IN  p_shift_no        INT,
+
+  OUT o_user_id         INT,
+  OUT o_std_id          INT,
+  OUT o_student_id      VARCHAR(50),
+  OUT o_plain_password  VARCHAR(6)
+)
 BEGIN
-  DECLARE v_student_id VARCHAR(20);
-  DECLARE v_pass_plain VARCHAR(6);
-  DECLARE v_pass_hash  VARCHAR(255);
+  DECLARE v_student_id   VARCHAR(50);
+  DECLARE v_pass_plain   VARCHAR(6);
+  DECLARE v_pass_hash    VARCHAR(255);
+  DECLARE v_exists       INT DEFAULT 0;
 
   DECLARE EXIT HANDLER FOR SQLEXCEPTION
   BEGIN
@@ -12,99 +35,95 @@ BEGIN
       SET MESSAGE_TEXT = 'sp_create_student failed. Transaction rolled back.';
   END;
 
-  -- 1) generate student_id like STU280002
+  -- Required checks (because students.shift_no is NOT NULL)
+  SELECT COUNT(*) INTO v_exists
+  FROM shifts
+  WHERE shift_no = p_shift_no;
+
+  IF p_shift_no IS NULL OR v_exists = 0 THEN
+    SIGNAL SQLSTATE '45000'
+      SET MESSAGE_TEXT = 'sp_create_student failed: invalid shift_no (shift not found).';
+  END IF;
+
+  -- Optional FK checks (only if provided)
+  IF p_add_no IS NOT NULL THEN
+    SELECT COUNT(*) INTO v_exists FROM address WHERE add_no = p_add_no;
+    IF v_exists = 0 THEN
+      SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'sp_create_student failed: invalid add_no (address not found).';
+    END IF;
+  END IF;
+
+  IF p_parent_no IS NOT NULL THEN
+    SELECT COUNT(*) INTO v_exists FROM parents WHERE parent_no = p_parent_no;
+    IF v_exists = 0 THEN
+      SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'sp_create_student failed: invalid parent_no (parent not found).';
+    END IF;
+  END IF;
+
+  IF p_sch_no IS NOT NULL THEN
+    SELECT COUNT(*) INTO v_exists FROM school WHERE sch_no = p_sch_no;
+    IF v_exists = 0 THEN
+      SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'sp_create_student failed: invalid sch_no (school not found).';
+    END IF;
+  END IF;
+
+  -- Generate student_id like STU280002 (your generator decides format)
   CALL sp_generate_student_id(NULL, v_student_id);
 
-  -- 2) generate 6-digit random password (keeps leading zeros)
+  -- Generate 6-digit password
   SET v_pass_plain = LPAD(FLOOR(RAND() * 1000000), 6, '0');
-
-  -- 3) hash password (SHA-256). If you want bcrypt, hash in Laravel instead.
-  SET v_pass_hash = SHA2(v_pass_plain, 256);
+  SET v_pass_hash  = SHA2(v_pass_plain, 256);
 
   START TRANSACTION;
 
-  -- 4) insert into users (role_id=1 student, username=student_id)
-  -- if p_access_channel is NULL, rely on table default by not overriding it
-  IF p_access_channel IS NULL THEN
-    INSERT INTO users(
-      role_id, username, password_hash, status, created_at, updated_at
-    )
-    VALUES (
-      1,
-      v_student_id,
-      v_pass_hash,
-      COALESCE(p_status, 'Active'),
-      CURRENT_TIMESTAMP,
-      CURRENT_TIMESTAMP
-    );
-  ELSE
-    INSERT INTO users(
-      role_id, username, password_hash, status, Accees_channel, created_at, updated_at
-    )
-    VALUES (
-      1,
-      v_student_id,
-      v_pass_hash,
-      COALESCE(p_status, 'Active'),
-      p_access_channel,
-      CURRENT_TIMESTAMP,
-      CURRENT_TIMESTAMP
-    );
-  END IF;
+  -- Insert into users:
+  -- status fixed = Active
+  -- Accees_channel NOT passed (so users table default APP applies)
+  INSERT INTO users(role_id, username, password_hash, status, created_at, updated_at)
+  VALUES (2, v_student_id, v_pass_hash, 'Active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
 
   SET o_user_id = LAST_INSERT_ID();
 
-  -- 5) insert into students (matches your table)
+  -- Insert into students (matches your table structure)
   INSERT INTO students(
     user_id, student_id, name, tell, gender, email, add_no, dob, parent_no,
-    register_date, mother, sch_no, nira, status, created_at, updated_at
+    register_date, mother, Pob, graduation_year, grade, sch_no, nira, shift_no,
+    status, created_at, updated_at
   )
   VALUES (
-    o_user_id,
-    v_student_id,
-    p_name,
-    p_tell,
-    p_gender,
-    p_email,
-    p_add_no,
-    p_dob,
-    p_parent_no,
-    p_register_date,
-    p_mother,
-    p_sch_no,
-    p_nira,
-    COALESCE(p_status, 'Active'),
-    CURRENT_TIMESTAMP,
-    CURRENT_TIMESTAMP
+    o_user_id, v_student_id, p_name, p_tell, p_gender, p_email, p_add_no, p_dob, p_parent_no,
+    p_register_date, p_mother, p_pob, p_graduation_year, p_grade, p_sch_no, p_nira, p_shift_no,
+    'Active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
   );
 
   SET o_std_id = LAST_INSERT_ID();
-INSERT INTO student_initial_credentials (std_id, user_id, username, plain_password)
-VALUES (o_std_id, o_user_id, v_student_id, v_pass_plain);
 
-
+  INSERT INTO student_initial_credentials(std_id, user_id, username, plain_password)
+  VALUES (o_std_id, o_user_id, v_student_id, v_pass_plain);
 
   COMMIT;
 
-  -- outputs
   SET o_student_id = v_student_id;
   SET o_plain_password = v_pass_plain;
 END$$
+
 DELIMITER ;
 
 
 
 
-
 DELIMITER $$
+
 CREATE DEFINER=`root`@`localhost` PROCEDURE `sp_create_teacher`(
   IN  p_name           VARCHAR(150),
   IN  p_tell           VARCHAR(30),
   IN  p_email          VARCHAR(150),
   IN  p_gender         VARCHAR(15),
+  IN  p_add_no         INT,
   IN  p_hire_date      DATE,
-  IN  p_status         VARCHAR(20),
-  IN  p_access_channel ENUM('APP','WEB','BOTH',''),
 
   OUT o_user_id        INT,
   OUT o_teacher_no     INT,
@@ -115,6 +134,7 @@ BEGIN
   DECLARE v_teacher_id  VARCHAR(20);
   DECLARE v_pass_plain  VARCHAR(6);
   DECLARE v_pass_hash   VARCHAR(255);
+  DECLARE v_exists      INT DEFAULT 0;
 
   DECLARE EXIT HANDLER FOR SQLEXCEPTION
   BEGIN
@@ -123,6 +143,17 @@ BEGIN
       SET MESSAGE_TEXT = 'sp_create_teacher failed. Transaction rolled back.';
   END;
 
+  -- Validate address exists (since add_no is required)
+  SELECT COUNT(*)
+    INTO v_exists
+  FROM address
+  WHERE add_no = p_add_no;
+
+  IF p_add_no IS NULL OR v_exists = 0 THEN
+    SIGNAL SQLSTATE '45000'
+      SET MESSAGE_TEXT = 'sp_create_teacher failed: invalid add_no (address not found).';
+  END IF;
+
   CALL sp_generate_teacher_id(NULL, v_teacher_id);
 
   SET v_pass_plain = LPAD(FLOOR(RAND() * 1000000), 6, '0');
@@ -130,22 +161,18 @@ BEGIN
 
   START TRANSACTION;
 
-  IF p_access_channel IS NULL THEN
-    INSERT INTO users(role_id, username, password_hash, status, created_at, updated_at)
-    VALUES (2, v_teacher_id, v_pass_hash, COALESCE(p_status,'Active'), CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
-  ELSE
-    INSERT INTO users(role_id, username, password_hash, status, Accees_channel, created_at, updated_at)
-    VALUES (2, v_teacher_id, v_pass_hash, COALESCE(p_status,'Active'), p_access_channel, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
-  END IF;
+  -- status = Active, Accees_channel = BOTH (set here, not passed in)
+  INSERT INTO users(role_id, username, password_hash, status, Accees_channel, created_at, updated_at)
+  VALUES (3, v_teacher_id, v_pass_hash, 'Active', 'BOTH', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
 
   SET o_user_id = LAST_INSERT_ID();
 
   INSERT INTO teachers(
-    user_id, teacher_id, name, tell, email, gender, hire_date, status, created_at, updated_at
+    user_id, teacher_id, name, tell, email, gender, add_no, hire_date, status, created_at, updated_at
   )
   VALUES (
-    o_user_id, v_teacher_id, p_name, p_tell, p_email, p_gender, p_hire_date,
-    COALESCE(p_status,'Active'), CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+    o_user_id, v_teacher_id, p_name, p_tell, p_email, p_gender, p_add_no, p_hire_date,
+    'Active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
   );
 
   SET o_teacher_no = LAST_INSERT_ID();
@@ -158,6 +185,7 @@ BEGIN
   SET o_teacher_id = v_teacher_id;
   SET o_plain_password = v_pass_plain;
 END$$
+
 DELIMITER ;
 
 DELIMITER $$

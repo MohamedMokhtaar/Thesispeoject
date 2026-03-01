@@ -5,10 +5,119 @@ namespace App\Http\Controllers;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 
 class AcademicStructureController extends Controller
 {
+    private function campusColumn()
+    {
+        return Schema::hasColumn('campuses', 'name') ? 'name' : 'campus';
+    }
+
+    private function teacherTable()
+    {
+        return Schema::hasTable('teachers') ? 'teachers' : 'tearchers';
+    }
+
+    public function listCampuses()
+    {
+        $column = $this->campusColumn();
+        $campuses = DB::table('campuses')
+            ->select('camp_no', "{$column} as name", 'created_at', 'updated_at')
+            ->orderBy('camp_no', 'DESC')
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'data' => $campuses
+        ]);
+    }
+
+    public function createCampus(Request $request)
+    {
+        $column = $this->campusColumn();
+        $payload = $request->validate([
+            'name' => ['required', 'string', 'max:120', Rule::unique('campuses', $column)]
+        ]);
+
+        $campNo = DB::table('campuses')->insertGetId([
+            $column => trim($payload['name']),
+            'created_at' => now(),
+            'updated_at' => now()
+        ]);
+
+        $created = DB::table('campuses')
+            ->where('camp_no', $campNo)
+            ->select('camp_no', "{$column} as name", 'created_at', 'updated_at')
+            ->first();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Campus created successfully.',
+            'data' => $created
+        ], 201);
+    }
+
+    public function updateCampus(Request $request, $camp_no)
+    {
+        $existing = DB::table('campuses')->where('camp_no', $camp_no)->first();
+        if (!$existing) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Campus not found.'
+            ], 404);
+        }
+
+        $column = $this->campusColumn();
+        $payload = $request->validate([
+            'name' => ['required', 'string', 'max:120', Rule::unique('campuses', $column)->ignore($camp_no, 'camp_no')]
+        ]);
+
+        DB::table('campuses')
+            ->where('camp_no', $camp_no)
+            ->update([
+                $column => trim($payload['name']),
+                'updated_at' => now()
+            ]);
+
+        $updated = DB::table('campuses')
+            ->where('camp_no', $camp_no)
+            ->select('camp_no', "{$column} as name", 'created_at', 'updated_at')
+            ->first();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Campus updated successfully.',
+            'data' => $updated
+        ]);
+    }
+
+    public function deleteCampus($camp_no)
+    {
+        $existing = DB::table('campuses')->where('camp_no', $camp_no)->first();
+        if (!$existing) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Campus not found.'
+            ], 404);
+        }
+
+        try {
+            DB::table('campuses')->where('camp_no', $camp_no)->delete();
+        } catch (QueryException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Cannot delete campus because it is linked to other records.'
+            ], 409);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Campus deleted successfully.'
+        ]);
+    }
+
     public function listFaculties()
     {
         $faculties = DB::table('faculties')
@@ -104,11 +213,16 @@ class AcademicStructureController extends Controller
         ]);
     }
 
-    public function listDepartments()
+    public function listDepartments(Request $request)
     {
-        $departments = DB::table('departments')
-            ->join('faculties', 'departments.faculty_no', '=', 'faculties.faculty_no')
-            ->select(
+        $query = DB::table('departments')
+            ->join('faculties', 'departments.faculty_no', '=', 'faculties.faculty_no');
+
+        if ($request->has('faculty_no')) {
+            $query->where('departments.faculty_no', $request->faculty_no);
+        }
+
+        $departments = $query->select(
                 'departments.dept_no',
                 'departments.name',
                 'departments.faculty_no',
@@ -224,6 +338,150 @@ class AcademicStructureController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Department deleted successfully.'
+        ]);
+    }
+
+    public function listClasses(Request $request)
+    {
+        $campusColumn = $this->campusColumn();
+        $query = DB::table('classes')
+            ->join('departments', 'classes.dept_no', '=', 'departments.dept_no')
+            ->join('campuses', 'classes.camp_no', '=', 'campuses.camp_no');
+
+        if ($request->has('dept_no')) {
+            $query->where('classes.dept_no', $request->dept_no);
+        }
+
+        $classes = $query->select(
+                'classes.cls_no',
+                'classes.cl_name',
+                'classes.dept_no',
+                'departments.name as department_name',
+                'classes.camp_no',
+                "campuses.{$campusColumn} as campus_name",
+                'classes.created_at',
+                'classes.updated_at'
+            )
+            ->orderBy('classes.cls_no', 'DESC')
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'data' => $classes
+        ]);
+    }
+
+    public function createClass(Request $request)
+    {
+        $payload = $request->validate([
+            'cl_name' => ['required', 'string', 'max:120', 'unique:classes,cl_name'],
+            'dept_no' => ['required', 'integer', 'exists:departments,dept_no'],
+            'camp_no' => ['required', 'integer', 'exists:campuses,camp_no']
+        ]);
+
+        $clsNo = DB::table('classes')->insertGetId([
+            'cl_name' => trim($payload['cl_name']),
+            'dept_no' => $payload['dept_no'],
+            'camp_no' => $payload['camp_no'],
+            'created_at' => now(),
+            'updated_at' => now()
+        ]);
+
+        $campusColumn = $this->campusColumn();
+        $created = DB::table('classes')
+            ->join('departments', 'classes.dept_no', '=', 'departments.dept_no')
+            ->join('campuses', 'classes.camp_no', '=', 'campuses.camp_no')
+            ->where('classes.cls_no', $clsNo)
+            ->select(
+                'classes.cls_no',
+                'classes.cl_name',
+                'classes.dept_no',
+                'departments.name as department_name',
+                'classes.camp_no',
+                "campuses.{$campusColumn} as campus_name",
+                'classes.created_at',
+                'classes.updated_at'
+            )
+            ->first();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Class created successfully.',
+            'data' => $created
+        ], 201);
+    }
+
+    public function updateClass(Request $request, $cls_no)
+    {
+        $existing = DB::table('classes')->where('cls_no', $cls_no)->first();
+        if (!$existing) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Class not found.'
+            ], 404);
+        }
+
+        $payload = $request->validate([
+            'cl_name' => ['required', 'string', 'max:120', Rule::unique('classes', 'cl_name')->ignore($cls_no, 'cls_no')],
+            'dept_no' => ['required', 'integer', 'exists:departments,dept_no'],
+            'camp_no' => ['required', 'integer', 'exists:campuses,camp_no']
+        ]);
+
+        DB::table('classes')
+            ->where('cls_no', $cls_no)
+            ->update([
+                'cl_name' => trim($payload['cl_name']),
+                'dept_no' => $payload['dept_no'],
+                'camp_no' => $payload['camp_no'],
+                'updated_at' => now()
+            ]);
+
+        $campusColumn = $this->campusColumn();
+        $updated = DB::table('classes')
+            ->join('departments', 'classes.dept_no', '=', 'departments.dept_no')
+            ->join('campuses', 'classes.camp_no', '=', 'campuses.camp_no')
+            ->where('classes.cls_no', $cls_no)
+            ->select(
+                'classes.cls_no',
+                'classes.cl_name',
+                'classes.dept_no',
+                'departments.name as department_name',
+                'classes.camp_no',
+                "campuses.{$campusColumn} as campus_name",
+                'classes.created_at',
+                'classes.updated_at'
+            )
+            ->first();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Class updated successfully.',
+            'data' => $updated
+        ]);
+    }
+
+    public function deleteClass($cls_no)
+    {
+        $existing = DB::table('classes')->where('cls_no', $cls_no)->first();
+        if (!$existing) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Class not found.'
+            ], 404);
+        }
+
+        try {
+            DB::table('classes')->where('cls_no', $cls_no)->delete();
+        } catch (QueryException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Cannot delete class because it is linked to other records.'
+            ], 409);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Class deleted successfully.'
         ]);
     }
 
@@ -418,6 +676,194 @@ class AcademicStructureController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Subject deleted successfully.'
+        ]);
+    }
+
+    public function listSubjectClasses()
+    {
+        $teacherTable = $this->teacherTable();
+        $rows = DB::table('subject_class')
+            ->join('subjects', 'subject_class.sub_no', '=', 'subjects.sub_no')
+            ->join('classes', 'subject_class.cls_no', '=', 'classes.cls_no')
+            ->join("{$teacherTable} as teachers", 'subject_class.teacher_no', '=', 'teachers.teacher_no')
+            ->select(
+                'subject_class.sub_cl_no',
+                'subject_class.sub_no',
+                'subjects.name as subject_name',
+                'subjects.code as subject_code',
+                'subject_class.cls_no',
+                'classes.cl_name',
+                'subject_class.teacher_no',
+                'teachers.name as teacher_name',
+                'subject_class.created_at',
+                'subject_class.updated_at'
+            )
+            ->orderBy('subject_class.sub_cl_no', 'DESC')
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'data' => $rows
+        ]);
+    }
+
+    public function createSubjectClass(Request $request)
+    {
+        $payload = $request->validate([
+            'sub_no' => ['required', 'integer', 'exists:subjects,sub_no'],
+            'cls_no' => ['required', 'integer', 'exists:classes,cls_no'],
+            'teacher_no' => ['required', 'integer', 'exists:' . $this->teacherTable() . ',teacher_no']
+        ]);
+
+        $exists = DB::table('subject_class')
+            ->where('sub_no', $payload['sub_no'])
+            ->where('cls_no', $payload['cls_no'])
+            ->where('teacher_no', $payload['teacher_no'])
+            ->exists();
+
+        if ($exists) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Subject class mapping already exists.'
+            ], 422);
+        }
+
+        $subClNo = DB::table('subject_class')->insertGetId([
+            'sub_no' => $payload['sub_no'],
+            'cls_no' => $payload['cls_no'],
+            'teacher_no' => $payload['teacher_no'],
+            'created_at' => now(),
+            'updated_at' => now()
+        ]);
+
+        $teacherTable = $this->teacherTable();
+        $created = DB::table('subject_class')
+            ->join('subjects', 'subject_class.sub_no', '=', 'subjects.sub_no')
+            ->join('classes', 'subject_class.cls_no', '=', 'classes.cls_no')
+            ->join("{$teacherTable} as teachers", 'subject_class.teacher_no', '=', 'teachers.teacher_no')
+            ->where('subject_class.sub_cl_no', $subClNo)
+            ->select(
+                'subject_class.sub_cl_no',
+                'subject_class.sub_no',
+                'subjects.name as subject_name',
+                'subjects.code as subject_code',
+                'subject_class.cls_no',
+                'classes.cl_name',
+                'subject_class.teacher_no',
+                'teachers.name as teacher_name',
+                'subject_class.created_at',
+                'subject_class.updated_at'
+            )
+            ->first();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Subject class mapping created successfully.',
+            'data' => $created
+        ], 201);
+    }
+
+    public function updateSubjectClass(Request $request, $sub_cl_no)
+    {
+        $existing = DB::table('subject_class')->where('sub_cl_no', $sub_cl_no)->first();
+        if (!$existing) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Subject class mapping not found.'
+            ], 404);
+        }
+
+        $payload = $request->validate([
+            'sub_no' => ['required', 'integer', 'exists:subjects,sub_no'],
+            'cls_no' => ['required', 'integer', 'exists:classes,cls_no'],
+            'teacher_no' => ['required', 'integer', 'exists:' . $this->teacherTable() . ',teacher_no']
+        ]);
+
+        $duplicate = DB::table('subject_class')
+            ->where('sub_cl_no', '!=', $sub_cl_no)
+            ->where('sub_no', $payload['sub_no'])
+            ->where('cls_no', $payload['cls_no'])
+            ->where('teacher_no', $payload['teacher_no'])
+            ->exists();
+
+        if ($duplicate) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Subject class mapping already exists.'
+            ], 422);
+        }
+
+        DB::table('subject_class')
+            ->where('sub_cl_no', $sub_cl_no)
+            ->update([
+                'sub_no' => $payload['sub_no'],
+                'cls_no' => $payload['cls_no'],
+                'teacher_no' => $payload['teacher_no'],
+                'updated_at' => now()
+            ]);
+
+        $teacherTable = $this->teacherTable();
+        $updated = DB::table('subject_class')
+            ->join('subjects', 'subject_class.sub_no', '=', 'subjects.sub_no')
+            ->join('classes', 'subject_class.cls_no', '=', 'classes.cls_no')
+            ->join("{$teacherTable} as teachers", 'subject_class.teacher_no', '=', 'teachers.teacher_no')
+            ->where('subject_class.sub_cl_no', $sub_cl_no)
+            ->select(
+                'subject_class.sub_cl_no',
+                'subject_class.sub_no',
+                'subjects.name as subject_name',
+                'subjects.code as subject_code',
+                'subject_class.cls_no',
+                'classes.cl_name',
+                'subject_class.teacher_no',
+                'teachers.name as teacher_name',
+                'subject_class.created_at',
+                'subject_class.updated_at'
+            )
+            ->first();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Subject class mapping updated successfully.',
+            'data' => $updated
+        ]);
+    }
+
+    public function deleteSubjectClass($sub_cl_no)
+    {
+        $existing = DB::table('subject_class')->where('sub_cl_no', $sub_cl_no)->first();
+        if (!$existing) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Subject class mapping not found.'
+            ], 404);
+        }
+
+        try {
+            DB::table('subject_class')->where('sub_cl_no', $sub_cl_no)->delete();
+        } catch (QueryException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Cannot delete subject class mapping because it is linked to other records.'
+            ], 409);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Subject class mapping deleted successfully.'
+        ]);
+    }
+
+    public function listTeacherOptions()
+    {
+        $rows = DB::table($this->teacherTable())
+            ->select('teacher_no', 'name')
+            ->orderBy('name', 'ASC')
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'data' => $rows
         ]);
     }
 

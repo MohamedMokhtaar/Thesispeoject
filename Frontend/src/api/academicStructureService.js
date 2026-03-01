@@ -1,6 +1,26 @@
 import client from './client';
 
 const academicStructureService = {
+    listCampuses: async () => {
+        const res = await client.get('/academic-structure/campuses');
+        return res.data;
+    },
+
+    createCampus: async (payload) => {
+        const res = await client.post('/academic-structure/campuses', payload);
+        return res.data;
+    },
+
+    updateCampus: async (campNo, payload) => {
+        const res = await client.put(`/academic-structure/campuses/${campNo}`, payload);
+        return res.data;
+    },
+
+    deleteCampus: async (campNo) => {
+        const res = await client.delete(`/academic-structure/campuses/${campNo}`);
+        return res.data;
+    },
+
     listFaculties: async () => {
         const res = await client.get('/academic-structure/faculties');
         return res.data;
@@ -38,6 +58,26 @@ const academicStructureService = {
 
     deleteDepartment: async (deptNo) => {
         const res = await client.delete(`/academic-structure/departments/${deptNo}`);
+        return res.data;
+    },
+
+    listClasses: async () => {
+        const res = await client.get('/academic-structure/classes');
+        return res.data;
+    },
+
+    createClass: async (payload) => {
+        const res = await client.post('/academic-structure/classes', payload);
+        return res.data;
+    },
+
+    updateClass: async (clsNo, payload) => {
+        const res = await client.put(`/academic-structure/classes/${clsNo}`, payload);
+        return res.data;
+    },
+
+    deleteClass: async (clsNo) => {
+        const res = await client.delete(`/academic-structure/classes/${clsNo}`);
         return res.data;
     },
 
@@ -98,6 +138,31 @@ const academicStructureService = {
 
     deleteSubject: async (subNo) => {
         const res = await client.delete(`/academic-structure/subjects/${subNo}`);
+        return res.data;
+    },
+
+    listSubjectClasses: async () => {
+        const res = await client.get('/academic-structure/subject-classes');
+        return res.data;
+    },
+
+    createSubjectClass: async (payload) => {
+        const res = await client.post('/academic-structure/subject-classes', payload);
+        return res.data;
+    },
+
+    updateSubjectClass: async (subClNo, payload) => {
+        const res = await client.put(`/academic-structure/subject-classes/${subClNo}`, payload);
+        return res.data;
+    },
+
+    deleteSubjectClass: async (subClNo) => {
+        const res = await client.delete(`/academic-structure/subject-classes/${subClNo}`);
+        return res.data;
+    },
+
+    listTeacherOptions: async () => {
+        const res = await client.get('/academic-structure/teachers-options');
         return res.data;
     }
 };

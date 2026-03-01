@@ -12,8 +12,10 @@ const Header = ({ onMenuClick, onNotifClick, unreadCount }) => {
 
     const pageTitle = useMemo(() => {
         if (location.pathname.startsWith('/student-management')) return 'Student Management';
+        if (location.pathname.startsWith('/teacher-management')) return 'Teacher Management';
         if (location.pathname.startsWith('/academic-structure')) return 'Academic Structure';
         if (location.pathname.startsWith('/exam-appeals')) return 'Exam Appeals';
+        if (location.pathname.startsWith('/exam-menu')) return 'Exam Menu';
         if (location.pathname.startsWith('/reporting')) return 'Reporting';
         if (location.pathname.startsWith('/class-issues')) return 'Class Issues';
         if (location.pathname.startsWith('/class-management')) return 'Class Management';

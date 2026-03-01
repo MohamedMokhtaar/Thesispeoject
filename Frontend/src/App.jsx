@@ -3,23 +3,19 @@ import { BrowserRouter as Router, Navigate, Route, Routes, useParams } from 'rea
 import ProtectedRoute from './components/ProtectedRoute';
 import DashboardLayout from './layouts/DashboardLayout';
 import AcademicStructure from './pages/AcademicStructure';
+import CampusEnvironment from './pages/CampusEnvironment';
 import ClassIssueDetails from './pages/ClassIssueDetails';
 import ClassIssuesList from './pages/ClassIssuesList';
 import ClassManagement from './pages/ClassManagement';
 import Dashboard from './pages/Dashboard';
 import ExamAppeals from './pages/ExamAppeals';
+import ExamMenu from './pages/ExamMenu';
 import Login from './pages/Login';
 import Profile from './pages/Profile';
 import Reporting from './pages/Reporting';
 import Settings from './pages/Settings';
 import StudentManagement from './pages/StudentManagement';
-
-const CampusEnvironment = () => (
-    <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-        <h1 className="text-2xl font-semibold text-black">Campus Environment</h1>
-        <p className="mt-2 text-sm text-gray-600">Environment reports and facilities operations will be shown here.</p>
-    </div>
-);
+import TeacherManagement from './pages/TeacherManagement';
 
 const MessagingSupport = () => (
     <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
@@ -59,6 +55,15 @@ function App() {
                     />
 
                     <Route
+                        path="/teacher-management"
+                        element={
+                            <ProtectedRoute allowedRoleName={['Admin', 'SuperAdmin']}>
+                                <TeacherManagement />
+                            </ProtectedRoute>
+                        }
+                    />
+
+                    <Route
                         path="/academic-structure"
                         element={
                             <ProtectedRoute allowedRoleName={['Faculty', 'Admin', 'SuperAdmin']}>
@@ -68,6 +73,15 @@ function App() {
                     />
 
                     <Route path="/exam-appeals" element={<ExamAppeals />} />
+
+                    <Route
+                        path="/exam-menu"
+                        element={
+                            <ProtectedRoute allowedRoleName={['HeadOfExam', 'Admin', 'SuperAdmin', 'Faculty', 'Teacher']}>
+                                <ExamMenu />
+                            </ProtectedRoute>
+                        }
+                    />
 
                     <Route
                         path="/reporting"

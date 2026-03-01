@@ -50,6 +50,12 @@ CREATE TABLE school (
   UNIQUE KEY uq_school_name (name)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE shifts (
+  shift_no   INT AUTO_INCREMENT PRIMARY KEY,
+  shiftName  VARCHAR(50) NOT NULL,
+  UNIQUE KEY uq_shifts_shift_name (shiftName)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE campuses (
   camp_no    INT AUTO_INCREMENT PRIMARY KEY,
   campus     VARCHAR(120) NOT NULL,
@@ -202,8 +208,12 @@ CREATE TABLE students (
   parent_no     INT NULL,
   register_date DATE NULL,
   mother        VARCHAR(150) NULL,
+  Pob           VARCHAR(100) NOT NULL,
+  graduation_year YEAR NOT NULL,
+  grade         VARCHAR(20) NOT NULL,
   sch_no        INT NULL,
   nira          VARCHAR(50)  NULL,
+  shift_no      INT NOT NULL,
   status        VARCHAR(20)  NOT NULL DEFAULT 'Active',
   created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -212,6 +222,7 @@ CREATE TABLE students (
   KEY idx_students_add_no (add_no),
   KEY idx_students_parent_no (parent_no),
   KEY idx_students_sch_no (sch_no),
+  KEY idx_students_shift_no (shift_no),
   CONSTRAINT fk_students_users
     FOREIGN KEY (user_id) REFERENCES users(user_id)
     ON UPDATE CASCADE ON DELETE RESTRICT,
@@ -223,7 +234,10 @@ CREATE TABLE students (
     ON UPDATE CASCADE ON DELETE SET NULL,
   CONSTRAINT fk_students_school
     FOREIGN KEY (sch_no) REFERENCES school(sch_no)
-    ON UPDATE CASCADE ON DELETE SET NULL
+    ON UPDATE CASCADE ON DELETE SET NULL,
+  CONSTRAINT fk_students_shifts
+    FOREIGN KEY (shift_no) REFERENCES shifts(shift_no)
+    ON UPDATE CASCADE ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE tearchers (
@@ -790,25 +804,24 @@ CREATE TABLE message_group_members (
 
 -- 1) Yahye Ali Isse
 CALL sp_create_teacher(
-  'Yahye Ali Isse','0617100001','yahye@example.com','Male','2024-01-10','Active','WEB',
+  'Yahye Ali Isse','0617100001','yahye@example.com','Male',1,'2024-01-10',
   @u1,@tno1,@tid1,@pass1
 );
 SELECT @tid1 AS username_teacher_id, @pass1 AS generated_password;
 
 -- 2) Ismail M Jamaal
 CALL sp_create_teacher(
-  'Ismail M Jamaal','0617100002','ismail@example.com','Male','2024-02-15','Active','WEB',
+  'Ismail M Jamaal','0617100002','ismail@example.com','Male',1,'2024-02-15',
   @u2,@tno2,@tid2,@pass2
 );
 SELECT @tid2 AS username_teacher_id, @pass2 AS generated_password;
 
 -- 3) Abdifitah Gabeyre
 CALL sp_create_teacher(
-  'Abdifitah Gabeyre','0617100003','abdifitah@example.com','Male','2024-03-20','Active','WEB',
+  'Abdifitah Gabeyre','0617100003','abdifitah@example.com','Male',1,'2024-03-20',
   @u3,@tno3,@tid3,@pass3
 );
 SELECT @tid3 AS username_teacher_id, @pass3 AS generated_password;
-
 
 CALL sp_create_student(
   'Mohamed Mukhtar',
@@ -820,10 +833,12 @@ CALL sp_create_student(
   1,              -- parent_no
   CURDATE(),
   'Amina',
+  'Mogadishu',
+  2024,
+  'A',
   1,              -- sch_no
   'NIRA-001',
-  'Active',
-  'APP',
+  1,              -- shift_no
   @u1, @s1, @sid1, @pass1
 );
 
@@ -839,10 +854,12 @@ CALL sp_create_student(
   2,
   CURDATE(),
   'Sahra',
+  'Hargeisa',
+  2024,
+  'B',
   1,
   'NIRA-002',
-  'Active',
-  'APP',
+  1,
   @u2, @s2, @sid2, @pass2
 );
 
@@ -859,10 +876,12 @@ CALL sp_create_student(
   3,
   CURDATE(),
   'Maryan',
+  'Kismayo',
+  2023,
+  'A',
   1,
   'NIRA-003',
-  'Active',
-  'APP',
+  1,
   @u3, @s3, @sid3, @pass3
 );
 
@@ -879,10 +898,12 @@ CALL sp_create_student(
   4,
   CURDATE(),
   'Hodan',
+  'Bosaso',
+  2022,
+  'B+',
   1,
   'NIRA-004',
-  'Active',
-  'APP',
+  1,
   @u4, @s4, @sid4, @pass4
 );
 

@@ -21,7 +21,8 @@ const Login = () => {
         try {
             const response = await client.post('/auth/login', {
                 username: username.trim(),
-                password
+                password,
+                login_channel: 'WEB'
             });
 
             if (response.data.success) {

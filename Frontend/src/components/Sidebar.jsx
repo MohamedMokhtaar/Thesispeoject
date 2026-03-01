@@ -8,6 +8,7 @@ import {
     MessageSquare,
     Settings,
     ShieldCheck,
+    UserCheck,
     Users
 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -30,6 +31,13 @@ const menuSections = [
         title: 'Management',
         items: [
             {
+                key: 'academic-structure',
+                label: 'Academic Section',
+                icon: BookOpen,
+                path: '/academic-structure',
+                roles: ['SuperAdmin', 'Admin', 'Faculty']
+            },
+            {
                 key: 'student-management',
                 label: 'Student Management',
                 icon: Users,
@@ -37,11 +45,18 @@ const menuSections = [
                 roles: ['SuperAdmin', 'Admin']
             },
             {
-                key: 'academic-structure',
-                label: 'Academic Section',
-                icon: BookOpen,
-                path: '/academic-structure',
-                roles: ['SuperAdmin', 'Admin', 'Faculty']
+                key: 'teacher-management',
+                label: 'Teacher Management',
+                icon: UserCheck,
+                path: '/teacher-management',
+                roles: ['SuperAdmin', 'Admin']
+            },
+            {
+                key: 'exam-menu',
+                label: 'Exam Menu',
+                icon: FileText,
+                path: '/exam-menu',
+                roles: ['SuperAdmin', 'Admin', 'HeadOfExam', 'Faculty', 'Teacher']
             }
         ]
     },

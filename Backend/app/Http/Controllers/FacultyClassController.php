@@ -162,6 +162,56 @@ class FacultyClassController extends Controller
     }
 
     /**
+     * List leaders with filters
+     */
+    public function listLeaders(Request $request)
+    {
+        try {
+            $query = DB::table('leaders')
+                ->join('students', 'leaders.std_id', '=', 'students.std_id')
+                ->join('classes', 'leaders.cls_no', '=', 'classes.cls_no')
+                ->join('departments', 'classes.dept_no', '=', 'departments.dept_no')
+                ->join('faculties', 'departments.faculty_no', '=', 'faculties.faculty_no')
+                ->select(
+                    'leaders.lead_id as le_no',
+                    'students.std_id',
+                    'students.name as student_name',
+                    'students.student_id as student_code',
+                    'classes.cls_no',
+                    'classes.cl_name',
+                    'departments.name as department_name',
+                    'faculties.name as faculty_name',
+                    'leaders.created_at'
+                );
+
+            if ($request->has('faculty_no')) {
+                $query->where('departments.faculty_no', $request->faculty_no);
+            }
+
+            if ($request->has('dept_no')) {
+                $query->where('classes.dept_no', $request->dept_no);
+            }
+
+            if ($request->has('cls_no')) {
+                $query->where('leaders.cls_no', $request->cls_no);
+            }
+
+            $leaders = $query->orderBy('leaders.lead_id', 'DESC')->get();
+
+            return response()->json([
+                'success' => true,
+                'data' => $leaders
+            ]);
+        } catch (\Exception $e) {
+            Log::error("Error listing leaders: " . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to list leaders'
+            ], 500);
+        }
+    }
+
+    /**
      * Get all students for dropdown selection
      */
     public function getAllStudents()

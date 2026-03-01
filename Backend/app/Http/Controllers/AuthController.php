@@ -8,16 +8,45 @@ use Illuminate\Support\Facades\Log;
 
 class AuthController extends Controller
 {
+    private function resolveLoginChannel(Request $request): string
+    {
+        $candidate = strtoupper(trim((string) (
+            $request->input('login_channel')
+            ?? $request->header('X-Login-Channel')
+            ?? $request->header('X-Client-Platform')
+            ?? 'WEB'
+        )));
+
+        if (in_array($candidate, ['APP', 'MOBILE', 'FLUTTER'], true)) {
+            return 'APP';
+        }
+
+        return 'WEB';
+    }
+
+    private function normalizeAccessChannel($channel): string
+    {
+        $candidate = strtoupper(trim((string) $channel));
+
+        if (in_array($candidate, ['WEB', 'APP', 'BOTH'], true)) {
+            return $candidate;
+        }
+
+        return 'BOTH';
+    }
+
     public function login(Request $request)
     {
         // 1. Input Validation
         $request->validate([
             'username' => 'required|string',
             'password' => 'required|string',
+            'login_channel' => 'nullable|string',
         ]);
 
         $username = trim($request->username);
         $password = $request->password;
+        $loginChannel = $this->resolveLoginChannel($request);
 
         // 2. Query User joined with Roles
         $user = DB::table('users')
@@ -71,8 +100,25 @@ class AuthController extends Controller
             ], 403);
         }
 
-        // 6. Block APP-only users from Web Login
-        if ($user->Accees_channel === 'APP') {
+        $roleName = strtolower(trim((string) $user->role_name));
+        $accessChannel = $this->normalizeAccessChannel($user->Accees_channel);
+
+        // 6. Enforce channel + role rules
+        if ($loginChannel === 'APP') {
+            if (!in_array($roleName, ['student', 'teacher'], true)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Only student and teacher accounts can access the app'
+                ], 403);
+            }
+
+            if ($accessChannel === 'WEB') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'This account is WEB only'
+                ], 403);
+            }
+        } elseif ($accessChannel === 'APP') {
             return response()->json([
                 'success' => false,
                 'message' => 'This account is APP only'
@@ -89,7 +135,8 @@ class AuthController extends Controller
                 'display_name' => $user->display_name,
                 'role_name' => $user->role_name,
                 'status' => $user->status,
-                'Accees_channel' => $user->Accees_channel
+                'Accees_channel' => $user->Accees_channel,
+                'login_channel' => $loginChannel
             ]
         ]);
     }
